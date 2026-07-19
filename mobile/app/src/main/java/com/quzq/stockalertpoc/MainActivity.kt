@@ -2,6 +2,8 @@ package com.quzq.stockalertpoc
 
 import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +16,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        createNotificationChannel()
+        requestNotificationPermission()
+
         val message = TextView(this).apply {
             text = "Stock Alert PoC\nChecking FCM configuration..."
             textSize = 20f
@@ -23,7 +28,6 @@ class MainActivity : Activity() {
         }
 
         setContentView(message)
-        requestNotificationPermission()
 
         val firebaseApp = FirebaseApp.initializeApp(this)
         if (firebaseApp == null) {
@@ -41,6 +45,17 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun createNotificationChannel() {
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Stock alerts",
+                NotificationManager.IMPORTANCE_HIGH,
+            )
+        )
+    }
+
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -50,6 +65,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val NOTIFICATION_CHANNEL_ID = "stock_alerts"
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
     }
 }
