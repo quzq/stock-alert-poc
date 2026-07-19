@@ -1,0 +1,7 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+
+# Firebase app configuration
+mobile/app/google-services.json
