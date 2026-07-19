@@ -5,3 +5,12 @@ local.properties
 
 # Firebase app configuration
 mobile/app/google-services.json
+
+# Backend / Node.js
+backend/node_modules/
+backend/dist/
+backend/.env
+
+# Credentials
+**/service-account*.json
+**/*service-account*.json
