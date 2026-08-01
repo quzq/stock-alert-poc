@@ -4,138 +4,130 @@
 
 ## 1. 目的
 
-Google Sheetsで設計した売買ラインと現在価格を結合し、各銘柄が次の有効ラインまでどれだけ近いかを一覧表示する個人用ツールを作ります。
+Google Sheetsで設計した国内株の売買ラインと、立花証券e支店APIから取得する現在価格を結合し、各銘柄が次の有効ラインまでどれだけ近いかを表示する個人用PoCを作ります。
 
-このリポジトリは投資判断、銘柄選定、売買価格や数量の妥当性を検討する場所ではありません。それらは別の株関連プロジェクトで行います。
+このリポジトリでは投資判断、銘柄選定、売買価格や数量の妥当性を検討しません。
 
-## 2. 最重要方針
+## 2. 正本と責務
 
-- Google Sheets = 人間とAIが設計する売買ルールの正本
-- 立花証券e支店API = 国内株の現在価格取得元
-- Backend = Sheetsと株価を結合し、距離を計算する実行エンジン
-- React Frontend = 到達状況を表示し、注文準備を支援する主画面
-- DB = 将来の通知履歴、価格履歴、機械的状態のみ
+- Google Sheets: 売買設計の正本
+- 立花証券e支店API: 国内株の現在価格取得元
+- TypeScript Backend: Sheets取得、株価取得、結合、距離計算
+- React Frontend: 到達状況の表示
+- DB: 将来必要になった場合の通知履歴や機械的状態のみ
 
 アラート設計自体をDB正本へ移しません。
 
 ## 3. PoCの主役
 
-主役はPush通知ではなく、**到達状況画面**です。
+主役はPush通知ではなく、到達状況画面です。通知、PWA、Capacitor、Android化は、Web版で必要性が確認された後に検討します。
 
-通知は将来、画面未確認、到達後未処理、監視停止などを知らせる補助機能として扱います。通知がなくても到達状況画面が使えればPoCは成立します。
+米国株の価格取得は現段階のPoC対象外です。
 
-## 4. 初期リリース形態
+## 4. 現在の最優先マイルストーン
 
-初期リリースはAndroidアプリではなく、React Web版とします。
+スプレッドシート由来のモック行から国内株コードを抽出し、そのコードを立花証券API形式の株価モックへ渡し、銘柄コードで結合したJSONをReact Frontendへ返します。
 
-理由:
+```text
+getAlertSpreadsheet()
+      ↓ symbol[]
+callTachibana(symbols)
+      ↓ CLMMfdsGetMarketPrice形式
+getMainData()
+      ↓ symbolで結合
+GET /api/alert-statuses
+      ↓
+React Frontend
+      ↓
+JSON.stringify(response, null, 2)
+```
 
-- APKを画面変更ごとに再インストールしない
-- PCとスマートフォンの両方で同じ画面を確認できる
-- ユーザーが通常のReactコードとして保守できる
-- Webで十分ならネイティブアプリ化を行わなくてよい
+現在は以下を実装済みです。
 
-Webで不足する要件が判明した場合だけ、PWAまたはCapacitorによるAndroid化を検討します。React Nativeは採用しません。
+- `getAlertSpreadsheet()` の固定行配列
+- 銘柄コード配列を受け取る `callTachibana(symbols)`
+- アラート行と株価を結合する `getMainData()`
+- `GET /api/alert-statuses`
+- FrontendからBackendへのfetch
+- `JSON.stringify` による応答表示
 
-## 5. PoCで検証する技術
+## 5. 現在のモック方針
 
-1. React + TypeScriptで画面を継続保守できること
-2. GitHub PagesでWeb版を迅速に公開・確認できること
-3. TypeScript Backendから立花証券API形式のJSONを返せること
-4. 現行Google Sheetsを読み取れること
-5. 列追加・並び替えへ追従できるSheet Adapterを作れること
-6. 立花証券e支店APIから国内株の現在価格を取得できること
+`getAlertSpreadsheet()` は、Google Sheetsの1行に相当するオブジェクト配列を返します。現段階の必須項目は次の3つだけです。
 
-立花証券APIの利用準備が完了するまでは、公開仕様に対応する固定レスポンスでFrontendとBackend間の通信を検証します。
+```ts
+{
+  symbol: string
+  name: string
+  alertText: string
+}
+```
+
+`callTachibana(symbols)` は、要求された銘柄に対応する固定株価を、公式 `CLMMfdsGetMarketPrice` の応答構造で返します。
+
+固定値は通信経路と結合処理を確認するためのサンプルであり、実際の保有情報や売買設計を含めません。
 
 ## 6. Frontend方針
 
-Frontendは以下を基本とします。
+FrontendはReact、TypeScript、Viteを使用します。Rechartsは距離計算と価格線を実装する段階で追加します。
 
-- React
-- TypeScript
-- Vite
-- Recharts（価格線を実装する段階で追加）
+Frontendから証券APIやGoogle Sheets APIを直接呼びません。現在はBackendが返す結合済みJSONを加工せず表示します。
 
-初期画面はGitHub Pagesへ公開します。
+GitHub Pagesは静的配信です。公開画面からBackendへ接続する場合、BackendをCloud Run等へ別途公開し、Repository Variable `VITE_API_BASE_URL` でURLを渡します。未設定時は `http://localhost:8080` を使用します。
 
-React Frontendから証券APIやGoogle Sheets APIを直接呼びません。認証情報を必要とする処理はBackendに置きます。
+## 7. Google Sheets方針
 
-現在の通信確認段階では、Backend応答を業務モデルへ変換せず、以下でそのまま表示します。
+Google Sheets実接続時は、全面再設計を前提に作業を止めません。ただし列番号へ直接依存してはいけません。
 
-```tsx
-JSON.stringify(tachibanaResponse, null, 2)
-```
+- 固定列識別子で列位置を解決する
+- 表示名変更や列並び替えに追従する
+- 未使用列は無視する
+- 必須列欠損、識別子重複、未知の識別子変更は明示エラーにする
+- Spreadsheet IDや非公開シート名を公開リポジトリへ記載しない
 
-到達状況画面を実装する段階で、API応答から内部モデルへのAdapterを追加します。
+取得、文章解釈、内部モデル変換、距離計算は別責務として分離します。
 
-## 7. 現在の最優先マイルストーン
+## 8. 立花証券API方針
 
-Backendの `callTachibana()` が返す立花証券API形式の固定JSONを、React FrontendからHTTP経由で取得してそのまま表示することです。
-
-```text
-React Frontend
-      ↓ GET /api/tachibana/market-price
-TypeScript Backend
-      ↓
-callTachibana()
-      ↓
-CLMMfdsGetMarketPrice形式の固定レスポンス
-```
-
-この段階では以下を使用しません。
-
-- Google Sheets
-- 立花証券APIへの実通信
-- 距離計算
-- Recharts
-- PWA
-- Capacitor
-- FCM
-
-## 8. Google Sheets方針
-
-まず現行シートを読めることを優先し、全面的なシート再設計を前提に作業を止めません。
-
-ただし、コードを列番号へ固定してはいけません。
-
-推奨構成:
-
-- 実データシートに固定列識別子を持たせる
-- 列定義シートに識別子、表示名、型、必須、説明、許容値を持たせる
-- Backendは固定識別子を使って列位置を解決する
-- Sheet Adapterで内部モデルへ変換する
-
-変更時の挙動:
-
-- 列の追加: 未使用列なら無視
-- 列の並び替え: 自動追従
-- 表示名変更: 固定識別子が同じなら影響なし
-- 任意列削除: 欠損値として扱う
-- 必須列削除: 読み込み停止して明示エラー
-- 識別子重複: エラー
-- 未知の識別子変更: 推測せずエラー
-
-Spreadsheet IDや非公開シート名を公開リポジトリへ記載しません。
-
-## 9. 立花証券API方針
-
-- Backendだけが証券APIへアクセスする
+- Backendだけが立花証券APIへアクセスする
 - FrontendやAndroidへ認証情報を渡さない
-- 監視銘柄は可能な限り一括取得する
+- 現在価格取得では監視銘柄を可能な限り一括要求する
+- `callTachibana(symbols)` を実通信との交換境界にする
 - PoCでは常時監視や高頻度ポーリングをしない
-- 画面表示時に現在価格を取得し、取得時刻を表示する
-- ユーザー操作の連打防止は不要
-- アプリ内部の意図しない二重ロードだけは発生させない
-- `callTachibana()` を実通信との交換境界にする
-- 利用開始前はAPI仕様準拠の固定レスポンスを返す
-- 口座準備完了後は `callTachibana()` の内部だけを実通信へ差し替える
+- 口座準備完了後に固定レスポンスを実通信へ差し替える
+- 認証、セッション、エラー処理、120銘柄超の分割は実接続時に実装する
 
-現在の固定レスポンスは、公式 `CLMMfdsGetMarketPrice` の `sCLMID` と `aCLMMfdsMarketPrice` 構造に合わせます。
+立花証券e支店APIは国内株用として扱います。
 
-## 10. PoC全体の最小合格ライン
+## 9. Backend方針
 
-1銘柄について、Google Sheetsの有効ラインと現在価格を結合し、React Web画面へ以下を表示することです。
+- TypeScript
+- Node.js 22以上
+- 現在のHTTPサーバーはNode.js標準 `node:http`
+- 初期クラウド候補はGCP Cloud Run
+- 設定は環境変数
+- Secretをコードへ埋め込まない
+- DB、WebSocket、注文連携を先回りして導入しない
+- FCM送信コードは既存資産として保持する
+
+## 10. 実装順序
+
+1. React Webの最小ページをGitHub Pagesへ公開
+2. 立花証券API形式の固定レスポンスを実装
+3. スプレッドシート由来の固定行配列を実装
+4. 銘柄コードを株価モックへ渡し、結果を結合してFrontendへ返す
+5. BackendをCloud Run等へ公開し、GitHub Pagesから接続
+6. 立花証券APIへ実接続
+7. 現行Google Sheetsを読み取る
+8. 固定列識別子とSheet Adapterを実装
+9. 距離計算、並び替え、Recharts価格線を実装
+10. 必要になった時点で通知、PWA、Capacitorを検討
+
+順番を飛ばして、本格的な認証基盤、DB、WebSocket、自動発注、一般公開向け機能を作りません。
+
+## 11. PoC全体の最小合格ライン
+
+1銘柄について、Google Sheetsの有効ラインと現在価格を結合し、React Web画面へ次を表示できることです。
 
 - 銘柄コード
 - 銘柄名
@@ -148,112 +140,21 @@ Spreadsheet IDや非公開シート名を公開リポジトリへ記載しませ
 - 接近状態
 - 現在価格の取得時刻
 
-## 11. 現在の状況
+## 12. 既存Android・FCMの扱い
 
-完了済み:
+既存のKotlin Androidアプリ、Firebase設定注入workflow、FCM受信コード、BackendのFCM送信コードは削除しません。ただし現在のPoC必須条件には含めません。
 
-- Kotlin Android最小アプリ
-- GitHub ActionsによるDebug APK生成
-- GitHub ReleaseへのAPK公開
-- Android端末でのインストールと起動確認
-- Firebase / FCM Android実装
-- FCM Registration token取得
-- Firebase ConsoleからAndroid端末へのPush受信確認
-- React + TypeScript + Viteの最小Webページ
-- GitHub Pagesへの自動公開workflow
+Registration token、Firebase認証情報、`google-services.json` を公開リポジトリへ記載しません。
 
-実装済み・確認待ち:
-
-- `callTachibana()` の固定レスポンス
-- `GET /api/tachibana/market-price`
-- FrontendからBackendへのfetch
-- Backend応答の `JSON.stringify` 表示
-- GitHub ActionsでのBackend・Frontendビルド
-
-実装済み・未検証:
-
-- TypeScript BackendからFCMへテスト通知を送る処理
-
-未実装:
-
-- BackendのCloud Run等への公開
-- 立花証券e支店APIへの実接続
-- Google Sheets読み取り
-- 固定列識別子とSheet Adapter
-- 到達状況への変換
-- 距離計算と並び替え
-- Recharts価格線
-
-## 12. 実装順序
-
-1. React WebのHello WorldをGitHub Pagesへ公開
-2. Backendに立花証券API仕様準拠の固定レスポンスを実装
-3. FrontendでBackend応答をそのまま表示
-4. BackendをCloud Run等へ公開し、GitHub Pagesから接続
-5. 口座準備完了後に実API通信へ差し替え
-6. 現行Google Sheetsを読み取る
-7. 固定列識別子とSheet Adapterを作る
-8. Google Sheetsのラインと現在価格を結合する
-9. 到達状況画面とRecharts価格線を作る
-10. 必要になった時点で通知、PWA、Capacitorを検討する
-
-順番を飛ばして、DB、WebSocket、注文連携、本格ネイティブアプリを先に作りません。
-
-## 13. Stage 1では実装しないもの
-
-- DB
-- WebSocket常時監視
-- 一般ニュース
-- AIによる自動売買判断
-- 完全自動発注
-- 信用取引
-- 空売り
-- レバレッジ
-- 一般公開向け機能
-
-Rechartsによる価格線は、API通信経路を確認した後に追加します。
-
-## 14. Backend・クラウド方針
-
-- BackendはTypeScript
-- Backend実行環境はNode.js 22以上
-- HTTPサーバーは現時点ではNode.js標準 `node:http` を使用する
-- 初期クラウドはGCP
-- Backend候補はCloud Run
-- GCP上ではApplication Default Credentialsを優先する
-- Google Sheets APIをBackendから使用する
-- 設定は環境変数
-- Secretをコードへ埋め込まない
-- データプロバイダ依存は差し替え可能にする
-- コンテナ化はDocker候補
-- Infrastructure as CodeはTerraform候補
-
-HTTP Backendと立花API固定レスポンスは実装済みです。Cloud RunやTerraformによるGCP環境構築コードは未実装です。
-
-## 15. 既存Android・FCMの扱い
-
-既存のKotlin AndroidアプリとFCM実装は削除しません。
-
-- Android受信コードを残す
-- Firebase設定注入workflowを残す
-- Backendテスト送信コードを残す
-- 現在のPoC必須条件にはしない
-- Web運用後に通知が必要になった時点で再利用する
-- Registration tokenやFirebase認証情報を公開リポジトリへ記載しない
-
-## 16. GitHub Pages方針
+## 13. GitHub PagesとCI
 
 - `frontend/` または `backend/` の更新時にGitHub Actionsで両方をビルドする
-- build成果物 `frontend/dist` をGitHub Pagesへ公開する
+- `frontend/dist` をGitHub Pagesへ公開する
 - GitHub Pagesの公開元はGitHub Actionsとする
 - Viteのbaseは `/stock-alert-poc/` とする
-- 公開Backend URLはRepository Variable `VITE_API_BASE_URL` でFrontendへ渡す
-- `VITE_API_BASE_URL` 未設定時は `http://localhost:8080` を使用する
-- 本物の売買ライン、認証情報、個人情報を静的Frontendへ含めない
+- Pages上でBackendは動作しない
 
-GitHub Pages自体はBackendを実行できません。公開画面でAPI通信を確認するには、BackendをCloud Run等へ別途公開する必要があります。
-
-## 17. Git運用
+## 14. Git運用
 
 PoC期間中は `main` ブランチのみで運用します。
 
@@ -261,7 +162,7 @@ PoC期間中は `main` ブランチのみで運用します。
 - featureブランチやPR運用は現時点では不要
 - Prettierはユーザーが明示した場合、または設定が存在する場合のみ実行する
 
-## 18. 個人情報・秘密情報
+## 15. 個人情報・秘密情報
 
 公開リポジトリへ以下をコミットしません。
 
@@ -278,31 +179,19 @@ PoC期間中は `main` ブランチのみで運用します。
 
 必要な値は環境変数またはSecretで管理します。
 
-## 19. Repository Structure
+## 16. Repository Structure
 
 ```text
 stock-alert-poc/
 ├─ backend/
 │  └─ src/
-│     ├─ server.ts
-│     ├─ sendTestNotification.ts
+│     ├─ alerts/
+│     ├─ main/
 │     └─ tachibana/
 ├─ frontend/
 ├─ mobile/
 ├─ infrastructure/
-├─ .github/
-│  └─ workflows/
+├─ .github/workflows/
 ├─ AGENTS.md
 └─ README.md
 ```
-
-- `frontend/`: React + TypeScript + Vite Web
-- `backend/`: TypeScript HTTP Backend、立花APIモック、FCM送信
-- `mobile/`: Kotlin製FCM検証アプリ
-- `infrastructure/`: 将来のGCP / Terraformコード
-
-## 20. 現在地
-
-FCM受信までの通知技術検証は完了済みです。
-
-現在は、Backendの `callTachibana()` が返す固定JSONをReact Frontendへそのまま表示する通信経路を実装した段階です。次はGitHub Actionsのビルド確認、その後にBackendの公開方法を決めます。
