@@ -4,12 +4,12 @@ const apiBaseUrl = (
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 ).replace(/\/+$/, '')
 
-const marketPriceEndpoint = `${apiBaseUrl}/api/tachibana/market-price`
+const alertStatusesEndpoint = `${apiBaseUrl}/api/alert-statuses`
 
-let marketPriceRequest: Promise<unknown> | undefined
+let alertStatusesRequest: Promise<unknown> | undefined
 
 function callBackend(): Promise<unknown> {
-  marketPriceRequest ??= fetch(marketPriceEndpoint).then(async (response) => {
+  alertStatusesRequest ??= fetch(alertStatusesEndpoint).then(async (response) => {
     if (!response.ok) {
       throw new Error(`Backend returned HTTP ${response.status}`)
     }
@@ -17,16 +17,16 @@ function callBackend(): Promise<unknown> {
     return response.json() as Promise<unknown>
   })
 
-  return marketPriceRequest
+  return alertStatusesRequest
 }
 
 function App() {
-  const [tachibanaResponse, setTachibanaResponse] = useState<unknown>()
+  const [alertStatuses, setAlertStatuses] = useState<unknown>()
   const [error, setError] = useState<string>()
 
   useEffect(() => {
     void callBackend()
-      .then(setTachibanaResponse)
+      .then(setAlertStatuses)
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : String(reason))
       })
@@ -36,11 +36,11 @@ function App() {
     <main className="page-shell">
       <section className="status-card" aria-labelledby="page-title">
         <p className="eyebrow">Stock Alert PoC</p>
-        <h1 id="page-title">Tachibana API mock response</h1>
+        <h1 id="page-title">Merged alert status mock response</h1>
         <p className="description">
-          BackendのcallTachibana()が返したJSONを加工せず表示しています。
+          スプレッドシート由来のモックと立花API形式の株価モックを、銘柄コードで結合したJSONです。
         </p>
-        <p className="endpoint">GET {marketPriceEndpoint}</p>
+        <p className="endpoint">GET {alertStatusesEndpoint}</p>
 
         {error ? (
           <pre className="json-output error-output">
@@ -48,9 +48,9 @@ function App() {
           </pre>
         ) : (
           <pre className="json-output">
-            {tachibanaResponse === undefined
+            {alertStatuses === undefined
               ? 'Loading...'
-              : JSON.stringify(tachibanaResponse, null, 2)}
+              : JSON.stringify(alertStatuses, null, 2)}
           </pre>
         )}
       </section>
