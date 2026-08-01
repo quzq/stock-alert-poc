@@ -11,6 +11,13 @@ backend/node_modules/
 backend/dist/
 backend/.env
 
+# Frontend / Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
 # Credentials
 **/service-account*.json
 **/*service-account*.json
