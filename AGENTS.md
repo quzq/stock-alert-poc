@@ -1,113 +1,209 @@
 # Stock Alert PoC 開発ルール
 
-このファイルは、このリポジトリで作業する人間・AI向けの開発ルール正本です。
-新しいスレッドや新しい作業セッションでは、まずこのファイルと現行コードを確認してください。
+このファイルは、このリポジトリで作業する人間・AI向けの開発ルール正本です。新しい作業では、会話記憶より先にこのファイルと現行コードを確認してください。
 
-## 1. このプロジェクトの目的
+## 1. 目的
 
-このリポジトリは、株式投資そのものを検討するプロジェクトではありません。
-目的は、Google Sheets等で人間・AIが設計した購入アラートを、将来自動監視・通知するためのアプリケーション基盤を作ることです。
+Google Sheetsで設計した売買ラインと現在価格を結合し、各銘柄が次の有効ラインまでどれだけ近いかを一覧表示する個人用アプリを作ります。
 
-投資判断、銘柄選定、買値・売値・数量の妥当性検討は別の株関連プロジェクトで行います。
-このリポジトリでは、アラート設計内容は基本的に入力データとして扱い、実行基盤の設計・実装に集中します。
+このリポジトリは投資判断、銘柄選定、売買価格や数量の妥当性を検討する場所ではありません。それらは別の株関連プロジェクトで行います。
 
 ## 2. 最重要方針
 
-技術よりアラート設計品質が重要です。
+- Google Sheets = 人間とAIが設計する売買ルールの正本
+- 立花証券e支店API = 国内株の現在価格取得元
+- Backend = Sheetsと株価を結合し、距離を計算する実行エンジン
+- React Frontend = 到達状況を表示し、注文準備を支援する主画面
+- DB = 将来の通知履歴、価格履歴、機械的状態のみ
 
-- Google Sheets = 人間・AIが設計するルールの正本
-- Backend = 正本を読み込んで実行するエンジン
-- DB = 将来、通知履歴・状態・株価履歴など機械的履歴のみ保存
+アラート設計自体をDB正本へ移しません。
 
-アラート設計自体をDB正本にはしません。
+## 3. PoCの主役
 
-## 3. PoCの基本原則
+主役はPush通知ではなく、**到達状況画面**です。
 
-PoCでは、常に最小の成功条件だけを実装します。
+通知は将来、画面未確認、到達後未処理、監視停止などを知らせる補助機能として扱います。通知がなくても到達状況画面が使えればPoCは成立します。
 
-- 不要な抽象化を先に入れない
-- 将来必要になりそう、という理由だけで機能を追加しない
-- 問題の切り分けが難しくなる変更をまとめて入れない
-- 一段階ずつ動作確認してから次へ進む
+## 4. PoCで検証する技術
 
-PoCなのに本番運用前提の複雑な構成を先に作らないでください。
+1. 立花証券e支店APIから国内株の現在価格を取得できること
+2. 現行Google Sheetsを読み取れること
+3. 列追加・並び替えへ追従できるSheet Adapterを作れること
+4. React + TypeScriptで画面を保守できること
+5. React画面をAndroidアプリとして表示できること
 
-## 4. 現在の最優先マイルストーン
+## 5. Frontend方針
 
-以下は完了済みです。
+Frontendは以下を基本とします。
 
-- APKのビルド
-- GitHub Release公開
-- Android端末でのインストール・起動確認
-- Firebase / FCM Android実装
-- FCM Registration token取得
-- Firebase ConsoleからAndroid端末へのPush通知受信確認
+- React
+- TypeScript
+- Vite
+- Capacitor
 
-現在の最優先は、TypeScript BackendからFCM経由でAndroid端末へテスト通知を1件送信することです。
+React Nativeは採用しません。ユーザーが通常のReactコードとして画面を保守できることを優先します。
 
-Backend側にはFirebase Admin SDKを使用した最小送信処理を実装済みです。
+Android固有機能はCapacitor Pluginまたは最小限のネイティブコードへ分離します。証券APIやGoogle Sheets APIをAndroidから直接呼びません。
 
-この確認が完了するまでは、立花証券APIやGoogle Sheets連携を先に追加しません。
+既存のKotlin AndroidアプリはAPK配布とFCM受信を検証するための技術スパイクです。到達状況画面の最終実装基盤ではありません。
 
-## 5. PoC Stage 1 の最終合格ライン
+## 6. Google Sheets方針
 
-GCP上のTypeScript Backendを実行すると、立花証券e支店APIから1銘柄の現在株価を取得し、その価格がAndroid端末へFCM Pushで届くこと。
+まず現行シートを読めることを優先し、全面的なシート再設計を前提に作業を止めません。
 
-通知内容:
+ただし、コードを列番号へ固定してはいけません。
+
+推奨構成:
+
+- 実データシートに固定列識別子を持たせる
+- 列定義シートに識別子、表示名、型、必須、説明、許容値を持たせる
+- Backendは固定識別子を使って列位置を解決する
+- Sheet Adapterで内部モデルへ変換する
+
+変更時の挙動:
+
+- 列の追加: 未使用列なら無視
+- 列の並び替え: 自動追従
+- 表示名変更: 固定識別子が同じなら影響なし
+- 任意列削除: 欠損値として扱う
+- 必須列削除: 読み込み停止して明示エラー
+- 識別子重複: エラー
+- 未知の識別子変更: 推測せずエラー
+
+Spreadsheet IDや非公開シート名を公開リポジトリへ記載しません。
+
+## 7. 立花証券API方針
+
+- Backendだけが証券APIへアクセスする
+- AndroidやReact Frontendへ認証情報を渡さない
+- 監視銘柄は可能な限り一括取得する
+- PoCでは常時監視や高頻度ポーリングをしない
+- 画面表示時に現在価格を取得し、取得時刻を表示する
+- ユーザー操作の連打防止は不要
+- アプリ内部の意図しない二重ロードだけは発生させない
+
+## 8. PoCの最小合格ライン
+
+1銘柄について、Google Sheetsの有効ラインと立花証券APIの現在価格を結合し、React製Android画面へ以下を表示することです。
 
 - 銘柄コード
 - 銘柄名
-- 現在株価
-- 取得時刻
+- 現在価格
+- 次の有効ライン種別
+- 次の有効ライン価格
+- 金額差
+- 距離率
+- 上方向、下方向、到達済みの区別
+- 接近状態
+- 現在価格の取得時刻
 
-Stage 1では以下を実装しません。
+画面はまず文字主体で作ります。装飾的な価格線、チャート、本格デザインは検証後です。
 
-- Google Sheets連携
-- WebSocket
+## 9. 現在の状況
+
+完了済み:
+
+- Kotlin Android最小アプリ
+- GitHub ActionsによるDebug APK生成
+- GitHub ReleaseへのAPK公開
+- Android端末でのインストールと起動確認
+- Firebase / FCM Android実装
+- FCM Registration token取得
+- Firebase ConsoleからAndroid端末へのPush受信確認
+
+実装済み・未検証:
+
+- TypeScript BackendからFCMへテスト通知を送る処理
+
+未実装:
+
+- 立花証券e支店APIからの現在価格取得
+- Google Sheets読み取り
+- 固定列識別子とSheet Adapter
+- 距離計算
+- React Frontend
+- Capacitor Android化
+
+## 10. 実装順序
+
+1. 立花証券e支店APIで国内株1銘柄の現在価格を取得
+2. 現行Google Sheetsを読み取る
+3. 固定列識別子とSheet Adapterを作る
+4. React + TypeScript + ViteのFrontendを作る
+5. 1銘柄分の到達状況をReact画面へ表示する
+6. CapacitorでAndroidアプリとして表示する
+7. 複数銘柄、並び替え、絞り込みを追加する
+8. 必要になった時点でFCM通知を接続する
+
+順番を飛ばして、本格UI、DB、WebSocket、注文連携を先に作りません。
+
+## 11. Stage 1では実装しないもの
+
 - DB
+- WebSocket常時監視
 - チャート
-- アラート価格判定
-- 重複通知防止
-- 複数銘柄監視
-- 本格Android UI
+- 一般ニュース
+- AIによる自動売買判断
+- 完全自動発注
+- 信用取引
+- 空売り
+- レバレッジ
+- 一般公開向け機能
 
-## 6. 実装順序
+## 12. 技術方針
 
-現在の想定順序:
+- BackendはTypeScript
+- Backend実行環境はNode.js 22以上
+- 初期クラウドはGCP
+- Backend候補はCloud Run
+- GCP上ではApplication Default Credentialsを優先する
+- Google Sheets APIをBackendから使用する
+- 設定は環境変数
+- Secretをコードへ埋め込まない
+- データプロバイダ依存は将来差し替え可能にする
+- コンテナ化はDocker候補
+- Infrastructure as CodeはTerraform候補
 
-1. Android最小アプリ 完了
-2. GitHub ActionsでDebug APK生成 完了
-3. Android端末でAPKインストール・起動確認 完了
-4. Firebase / FCM Android実装 完了
-5. Android端末でPush受信確認 完了
-6. TypeScript BackendからFCMへテスト通知送信 現在地
-7. TypeScript Backendから立花証券e支店APIで1銘柄取得
-8. 取得株価をBackend → FCM → Android Push
-9. PoC Stage 1完了
-10. Google Sheets読み取り連携
-11. WebSocket監視
-12. アラート判定
-13. 重複通知防止
-14. DB
-15. 一覧UI / 詳細UI / チャート
+## 13. FCMの扱い
 
-順番を飛ばして大きな機能を先に追加しないでください。
+FCMは技術確認済みのオプション機能として残します。
 
-## 7. Git運用
+- Android受信コードを削除しない
+- Backendテスト送信コードを削除しない
+- 現在のPoC必須条件にはしない
+- 到達状況画面が完成してから、未確認警告などへ接続する
+- Registration tokenやFirebase認証情報を公開リポジトリへ記載しない
+
+## 14. Git運用
 
 PoC期間中は `main` ブランチのみで運用します。
 
 - 小さな変更は `main` へ直接反映してよい
 - featureブランチやPR運用は現時点では不要
-- 継続開発フェーズへ移行した時点で再検討する
+- Prettierはユーザーが明示した場合、または設定が存在する場合のみ実行する
 
-管理のための管理を増やさないことを優先します。
+## 15. 個人情報・秘密情報
 
-## 8. リポジトリ構成
+公開リポジトリへ以下をコミットしません。
+
+- 個人情報
+- 個人端末の具体的な機種名
+- 個人用Spreadsheet ID
+- 非公開シート名
+- APIキー
+- Registration token
+- 認証情報
+- `google-services.json`
+- サービスアカウント鍵
+
+必要な値は環境変数またはSecretで管理します。
+
+## 16. Repository Structure
 
 ```text
 stock-alert-poc/
 ├─ backend/
+├─ frontend/
 ├─ mobile/
 ├─ infrastructure/
 ├─ .github/
@@ -116,94 +212,10 @@ stock-alert-poc/
 └─ README.md
 ```
 
-役割:
+`frontend/` はReact + TypeScript + Vite、`mobile/` は現行Kotlin検証アプリから将来Capacitor Androidへ移行します。
 
-- `backend/`: TypeScript Backend
-- `mobile/`: Androidアプリ
-- `infrastructure/`: GCP / Terraform等
-- `.github/workflows/`: GitHub Actions
+## 17. 現在地
 
-## 9. 技術方針
+FCM受信までの通知技術検証は完了済みです。
 
-基本方針:
-
-- BackendはTypeScript
-- Backend実行環境はNode.js 22以上
-- Firebase Admin SDKによるFCM送信はBackend側で行う
-- GCP実行環境ではApplication Default Credentialsを優先する
-- コンテナ化はDocker
-- Infrastructure as CodeはTerraform候補
-- 設定は環境変数
-- Secretはコードへ埋め込まない
-- データプロバイダ依存は将来差し替え可能にする
-- Androidから証券APIへ直接アクセスしない
-
-構成:
-
-```text
-Android
-  ↑ FCM
-自前Backend
-  ↓
-株価データプロバイダ
-```
-
-証券APIキーをAndroidへ持たせないこと。
-
-Firebase設定:
-
-- Application IDは `com.quzq.stockalertpoc`
-- `mobile/app/google-services.json` はコミットしない
-- GitHub ActionsではSecretからビルド時に復元する
-- Secret未設定時はFirebase設定なしAPKとしてビルドする
-- Registration tokenや認証情報を公開リポジトリへ記載しない
-
-## 10. クラウド方針
-
-初期クラウドはGCPですが、GCP専用アプリにはしません。
-
-PoC候補:
-
-- Cloud Run
-- Firebase / FCM
-
-将来の常時監視ではCloud Run Jobまたは常駐コンテナを検討します。
-
-AWSならECS / Fargate、AzureならContainer Appsへ移行できる程度の疎結合を意識します。
-
-## 11. Google Sheets正本
-
-Google Sheetsは、アラート設計や保有状況など、人間・AIが確認・編集する情報の正本として利用します。
-
-- リポジトリ内の文書やソースコードに、個人用Spreadsheet IDや非公開シート名を記載しない
-- 接続先IDなど環境依存の値は、将来Secretまたは環境変数で管理する
-- アラート設計そのものはDB正本へ移行しない
-
-## 12. 個人情報・秘密情報
-
-公開リポジトリには、開発に不要な個人情報や個人環境情報を記載しません。
-
-以下は原則としてコミットしないこと:
-
-- 個人名、メールアドレス、住所などの個人情報
-- 個人が使用している端末の具体的な機種名
-- 個人用Google SheetsのSpreadsheet IDや非公開シート名
-- APIキー、トークン、認証情報
-- `google-services.json` など環境依存の設定ファイル
-- その他、公開する必要のないアカウント固有情報
-
-必要な設定値は環境変数またはSecretで管理します。
-
-## 13. 開発時の注意
-
-- ユーザーの明示がない限り、勝手に機能を増やさない
-- 現在のマイルストーンに不要なライブラリを入れない
-- DBを「どうせ後で使うから」という理由で先に入れない
-- 問題切り分けを最優先する
-- 新しいスレッドでは、過去の会話記憶だけで判断せず、このファイルと現行コードを確認する
-- Prettierは、ユーザーが明示した場合、またはプロジェクトのPrettier設定が存在する場合のみ実行する
-
-## 14. 現在地
-
-APK配布ループ、Android側FCM実装、Registration token取得、Firebase ConsoleからのPush通知受信確認は完了済みです。
-現在はTypeScript BackendからFCMへテスト通知を送信し、Backend → FCM → Androidの経路を確認する段階です。
+現在は、立花証券API、Google Sheets、React到達状況画面をPoCの中心へ切り替えた段階です。次は立花証券APIで国内株1銘柄の現在価格を取得します。
