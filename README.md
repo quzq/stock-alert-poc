@@ -8,45 +8,47 @@ Google Sheetsで設計した売買ラインと現在価格を結合し、各銘�
 
 ## 現在のWeb画面
 
-React FrontendからTypeScript Backendを呼び、Backendの `callTachibana()` が返したJSONを加工せず表示します。
+React FrontendからTypeScript Backendを呼び、スプレッドシート由来のモックと立花証券API形式の株価モックを銘柄コードで結合したJSONを表示します。
 
 ```text
-React Web
-   ↓ GET /api/tachibana/market-price
-TypeScript Backend
+getAlertSpreadsheet()
+   ↓ アラート行から銘柄コードを抽出
+callTachibana(symbols)
+   ↓ 立花証券API形式の株価モック
+getMainData()
+   ↓ symbolで結合
+GET /api/alert-statuses
    ↓
-callTachibana()
+React Frontend
    ↓
-立花証券API仕様に合わせた固定レスポンス
-```
-
-Frontendの表示は次の処理だけです。
-
-```tsx
-JSON.stringify(tachibanaResponse, null, 2)
+JSON.stringify(response, null, 2)
 ```
 
 GitHub Pagesは静的配信のため、公開画面からBackendへ接続するにはBackendの公開URLが別途必要です。GitHub ActionsではRepository Variable `VITE_API_BASE_URL` をFrontendのビルド時に使用します。未設定時は `http://localhost:8080` を使用します。
 
-## 立花証券APIモック
+## 現在のモック
 
-現在の `callTachibana()` は実通信を行わず、公式の `CLMMfdsGetMarketPrice` 応答構造に合わせた固定オブジェクトを返します。
+`getAlertSpreadsheet()` は、実際のGoogle Sheetsへ接続せず、銘柄コード、銘柄名、アラート文を含む固定の行配列を返します。
+
+`callTachibana(symbols)` は、受け取った銘柄コードに対応する固定株価を、公式 `CLMMfdsGetMarketPrice` の応答構造に合わせて返します。
 
 ```json
-{
-  "sCLMID": "CLMMfdsGetMarketPrice",
-  "aCLMMfdsMarketPrice": [
-    {
+[
+  {
+    "symbol": "5367",
+    "name": "ニッカトー",
+    "alertText": "1,200円で確認（モック）",
+    "marketPrice": {
       "sIssueCode": "5367",
       "pDPP": "1255",
       "pPRP": "1240",
       "tDPP:T": "153000"
     }
-  ]
-}
+  }
+]
 ```
 
-口座とAPI利用設定の準備完了後、`callTachibana()` の内部だけを実API通信へ差し替えます。
+固定値は通信経路と結合処理を検証するためのサンプルであり、実際の売買設計ではありません。
 
 ## PoCの主役
 
@@ -74,6 +76,8 @@ PoCで検証する中心項目は次の3つです。
 
 Google Sheetsは売買設計の正本とします。列番号へ直接依存せず、固定識別子とSheet Adapterを通して内部モデルへ変換します。
 
+米国株の価格取得は本PoCの対象外です。
+
 ## Frontend方針
 
 到達状況画面は以下で実装します。
@@ -98,14 +102,16 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 - Firebase ConsoleからAndroid端末へのPush受信確認
 - React + TypeScript + Viteの最小Web画面
 - GitHub Pagesへの自動公開workflow
+- `getAlertSpreadsheet()` の固定行配列
+- 銘柄コードを引数に取る `callTachibana(symbols)`
+- アラート行と株価を結合する `getMainData()`
+- `GET /api/alert-statuses`
+- Frontendでの `JSON.stringify` 表示
 
 実装済み・確認待ち:
 
-- `callTachibana()` の固定レスポンス
-- `GET /api/tachibana/market-price`
-- FrontendからBackendへのfetch
-- `JSON.stringify` による応答表示
 - GitHub ActionsでのBackend・Frontendビルド
+- ローカル環境でのFrontendからBackendへの通信
 
 実装済み・未検証:
 
@@ -117,13 +123,13 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 - 立花証券e支店APIへの実接続
 - Google Sheets読み取り
 - 固定列識別子とSheet Adapter
-- 到達状況への変換
+- 実データに基づく到達状況への変換
 - 距離計算と並び替え
 - Rechartsによる価格線
 
 ## 現在の合格ライン
 
-ローカル環境でFrontendからBackendを呼び、立花証券API形式の固定JSONがブラウザへそのまま表示されることです。
+ローカル環境でFrontendから `GET /api/alert-statuses` を呼び、スプレッドシート由来のモック行と立花証券API形式の株価モックが銘柄コードで結合されたJSONを表示できることです。
 
 公開GitHub Pagesで同じ確認を行うには、Backendを公開した後にRepository Variable `VITE_API_BASE_URL` へそのURLを設定します。
 
@@ -145,13 +151,13 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 
 1. React WebのHello WorldをGitHub Pagesへ公開
 2. Backendに立花証券API仕様準拠の固定レスポンスを実装
-3. FrontendでBackend応答をそのまま表示
-4. BackendをCloud Run等へ公開し、GitHub Pagesから接続
-5. 口座準備完了後に実API通信へ差し替え
-6. 現行Google Sheetsを読み取る
-7. 固定列識別子とSheet Adapterを作る
-8. Google Sheetsのラインと現在価格を結合する
-9. 到達状況画面とRecharts価格線を作る
+3. スプレッドシート由来の固定行配列を実装
+4. 銘柄コードを立花モックへ渡し、結果を結合してFrontendへ返す
+5. BackendをCloud Run等へ公開し、GitHub Pagesから接続
+6. 口座準備完了後に実API通信へ差し替え
+7. 現行Google Sheetsを読み取る
+8. 固定列識別子とSheet Adapterを作る
+9. 到達状況計算とRecharts価格線を作る
 10. 必要になった時点で通知またはアプリ化を検討する
 
 ## 既存Android・通知実装
@@ -199,7 +205,7 @@ cd ../frontend && npm run build
 
 ```text
 stock-alert-poc/
-├─ backend/          # TypeScript Backend、立花APIモック、FCM送信
+├─ backend/          # TypeScript Backend、アラートモック、立花APIモック、FCM送信
 ├─ frontend/         # React + TypeScript + Vite Web
 ├─ mobile/           # Kotlin製FCM検証アプリ
 ├─ infrastructure/   # GCP / Terraform等
