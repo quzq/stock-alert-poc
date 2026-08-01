@@ -41,11 +41,12 @@ Webで不足する要件が判明した場合だけ、PWAまたはCapacitorに�
 
 1. React + TypeScriptで画面を継続保守できること
 2. GitHub PagesでWeb版を迅速に公開・確認できること
-3. 現行Google Sheetsを読み取れること
-4. 列追加・並び替えへ追従できるSheet Adapterを作れること
-5. 立花証券e支店APIから国内株の現在価格を取得できること
+3. TypeScript Backendから立花証券API形式のJSONを返せること
+4. 現行Google Sheetsを読み取れること
+5. 列追加・並び替えへ追従できるSheet Adapterを作れること
+6. 立花証券e支店APIから国内株の現在価格を取得できること
 
-立花証券APIの利用準備が完了するまでは、公開仕様に対応するMock Providerで画面とBackendの開発を進めます。
+立花証券APIの利用準備が完了するまでは、公開仕様に対応する固定レスポンスでFrontendとBackend間の通信を検証します。
 
 ## 6. Frontend方針
 
@@ -60,35 +61,33 @@ Frontendは以下を基本とします。
 
 React Frontendから証券APIやGoogle Sheets APIを直接呼びません。認証情報を必要とする処理はBackendに置きます。
 
-データ取得部分は差し替え可能にします。
+現在の通信確認段階では、Backend応答を業務モデルへ変換せず、以下でそのまま表示します。
 
-```text
-React Frontend
-      ↓
-AlertStatusRepository
-  ├─ MockAlertStatusRepository
-  └─ ApiAlertStatusRepository
+```tsx
+JSON.stringify(tachibanaResponse, null, 2)
 ```
 
-最初は静的なモックデータだけを使用し、画面構成、スマートフォン表示、並び替え、価格線の見やすさを検証します。
+到達状況画面を実装する段階で、API応答から内部モデルへのAdapterを追加します。
 
 ## 7. 現在の最優先マイルストーン
 
-React + TypeScript + Viteの最小ページをGitHub Pagesへ公開し、PCとスマートフォンのブラウザで表示確認することです。
-
-表示内容:
+Backendの `callTachibana()` が返す立花証券API形式の固定JSONを、React FrontendからHTTP経由で取得してそのまま表示することです。
 
 ```text
-Stock Alert PoC
-React Web build successful
+React Frontend
+      ↓ GET /api/tachibana/market-price
+TypeScript Backend
+      ↓
+callTachibana()
+      ↓
+CLMMfdsGetMarketPrice形式の固定レスポンス
 ```
 
 この段階では以下を使用しません。
 
 - Google Sheets
-- 立花証券API
-- Backend API
-- モック株価
+- 立花証券APIへの実通信
+- 距離計算
 - Recharts
 - PWA
 - Capacitor
@@ -128,7 +127,11 @@ Spreadsheet IDや非公開シート名を公開リポジトリへ記載しませ
 - 画面表示時に現在価格を取得し、取得時刻を表示する
 - ユーザー操作の連打防止は不要
 - アプリ内部の意図しない二重ロードだけは発生させない
-- 利用開始前はMock Providerを使い、実API接続部分だけ後から差し替える
+- `callTachibana()` を実通信との交換境界にする
+- 利用開始前はAPI仕様準拠の固定レスポンスを返す
+- 口座準備完了後は `callTachibana()` の内部だけを実通信へ差し替える
+
+現在の固定レスポンスは、公式 `CLMMfdsGetMarketPrice` の `sCLMID` と `aCLMMfdsMarketPrice` 構造に合わせます。
 
 ## 10. PoC全体の最小合格ライン
 
@@ -156,11 +159,16 @@ Spreadsheet IDや非公開シート名を公開リポジトリへ記載しませ
 - Firebase / FCM Android実装
 - FCM Registration token取得
 - Firebase ConsoleからAndroid端末へのPush受信確認
+- React + TypeScript + Viteの最小Webページ
+- GitHub Pagesへの自動公開workflow
 
 実装済み・確認待ち:
 
-- React + TypeScript + Viteの最小Webページ
-- GitHub Pagesへの自動公開workflow
+- `callTachibana()` の固定レスポンス
+- `GET /api/tachibana/market-price`
+- FrontendからBackendへのfetch
+- Backend応答の `JSON.stringify` 表示
+- GitHub ActionsでのBackend・Frontendビルド
 
 実装済み・未検証:
 
@@ -168,24 +176,25 @@ Spreadsheet IDや非公開シート名を公開リポジトリへ記載しませ
 
 未実装:
 
-- 静的モックデータの到達状況画面
-- Recharts価格線
+- BackendのCloud Run等への公開
+- 立花証券e支店APIへの実接続
 - Google Sheets読み取り
 - 固定列識別子とSheet Adapter
-- 立花証券e支店APIからの現在価格取得
+- 到達状況への変換
 - 距離計算と並び替え
+- Recharts価格線
 
 ## 12. 実装順序
 
 1. React WebのHello WorldをGitHub Pagesへ公開
-2. 静的モックデータで1銘柄の到達状況画面を作る
-3. Rechartsで価格線を表示する
-4. 複数銘柄、並び替え、スマートフォン表示を検証する
-5. 現行Google Sheetsを読み取る
-6. 固定列識別子とSheet Adapterを作る
-7. 立花証券API仕様に対応するMock Providerを作る
-8. 口座準備完了後に実API Providerへ差し替える
-9. Google Sheetsのラインと現在価格を結合する
+2. Backendに立花証券API仕様準拠の固定レスポンスを実装
+3. FrontendでBackend応答をそのまま表示
+4. BackendをCloud Run等へ公開し、GitHub Pagesから接続
+5. 口座準備完了後に実API通信へ差し替え
+6. 現行Google Sheetsを読み取る
+7. 固定列識別子とSheet Adapterを作る
+8. Google Sheetsのラインと現在価格を結合する
+9. 到達状況画面とRecharts価格線を作る
 10. 必要になった時点で通知、PWA、Capacitorを検討する
 
 順番を飛ばして、DB、WebSocket、注文連携、本格ネイティブアプリを先に作りません。
@@ -202,12 +211,13 @@ Spreadsheet IDや非公開シート名を公開リポジトリへ記載しませ
 - レバレッジ
 - 一般公開向け機能
 
-Rechartsによる価格線は、Hello World公開後のモック画面段階で追加します。
+Rechartsによる価格線は、API通信経路を確認した後に追加します。
 
 ## 14. Backend・クラウド方針
 
 - BackendはTypeScript
 - Backend実行環境はNode.js 22以上
+- HTTPサーバーは現時点ではNode.js標準 `node:http` を使用する
 - 初期クラウドはGCP
 - Backend候補はCloud Run
 - GCP上ではApplication Default Credentialsを優先する
@@ -218,7 +228,7 @@ Rechartsによる価格線は、Hello World公開後のモック画面段階で�
 - コンテナ化はDocker候補
 - Infrastructure as CodeはTerraform候補
 
-現時点ではCloud RunやTerraformによるGCP環境構築コードは未実装です。
+HTTP Backendと立花API固定レスポンスは実装済みです。Cloud RunやTerraformによるGCP環境構築コードは未実装です。
 
 ## 15. 既存Android・FCMの扱い
 
@@ -233,11 +243,15 @@ Rechartsによる価格線は、Hello World公開後のモック画面段階で�
 
 ## 16. GitHub Pages方針
 
-- `frontend/` の更新時にGitHub Actionsでビルドする
+- `frontend/` または `backend/` の更新時にGitHub Actionsで両方をビルドする
 - build成果物 `frontend/dist` をGitHub Pagesへ公開する
 - GitHub Pagesの公開元はGitHub Actionsとする
 - Viteのbaseは `/stock-alert-poc/` とする
+- 公開Backend URLはRepository Variable `VITE_API_BASE_URL` でFrontendへ渡す
+- `VITE_API_BASE_URL` 未設定時は `http://localhost:8080` を使用する
 - 本物の売買ライン、認証情報、個人情報を静的Frontendへ含めない
+
+GitHub Pages自体はBackendを実行できません。公開画面でAPI通信を確認するには、BackendをCloud Run等へ別途公開する必要があります。
 
 ## 17. Git運用
 
@@ -269,6 +283,10 @@ PoC期間中は `main` ブランチのみで運用します。
 ```text
 stock-alert-poc/
 ├─ backend/
+│  └─ src/
+│     ├─ server.ts
+│     ├─ sendTestNotification.ts
+│     └─ tachibana/
 ├─ frontend/
 ├─ mobile/
 ├─ infrastructure/
@@ -279,7 +297,7 @@ stock-alert-poc/
 ```
 
 - `frontend/`: React + TypeScript + Vite Web
-- `backend/`: TypeScript Backend
+- `backend/`: TypeScript HTTP Backend、立花APIモック、FCM送信
 - `mobile/`: Kotlin製FCM検証アプリ
 - `infrastructure/`: 将来のGCP / Terraformコード
 
@@ -287,4 +305,4 @@ stock-alert-poc/
 
 FCM受信までの通知技術検証は完了済みです。
 
-現在はReact Web版を主軸へ切り替え、GitHub PagesでHello World相当の画面を公開確認する段階です。次は静的モックデータで到達状況画面を作ります。
+現在は、Backendの `callTachibana()` が返す固定JSONをReact Frontendへそのまま表示する通信経路を実装した段階です。次はGitHub Actionsのビルド確認、その後にBackendの公開方法を決めます。
