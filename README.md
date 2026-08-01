@@ -4,6 +4,21 @@ Google Sheetsで設計した売買ラインと現在価格を結合し、各銘�
 
 このリポジトリは投資判断そのものを行う場所ではありません。売買計画に対する現在価格の位置を可視化し、到達前の注文準備を支援するアプリケーション基盤を検証します。
 
+## React Web
+
+初期リリースはAndroidアプリではなく、React Web版を使用します。
+
+[**React Web版を開く**](https://quzq.github.io/stock-alert-poc/)
+
+`main` の `frontend/` が更新されると、GitHub ActionsでビルドしてGitHub Pagesへ公開します。
+
+現在のWeb画面は、ReactとGitHub Pagesの公開経路を確認するためのHello World相当です。
+
+```text
+Stock Alert PoC
+React Web build successful
+```
+
 ## PoCの主役
 
 主役はPush通知ではなく、**到達状況画面**です。
@@ -24,9 +39,11 @@ React製の到達状況画面
 
 PoCで検証する中心項目は次の3つです。
 
-1. 立花証券e支店APIから国内株の現在価格を取得できること
+1. React + TypeScriptで到達状況画面を作り、Webで継続運用・保守できること
 2. 現行Google Sheetsを読み取り、列追加・並び替えに追従できること
-3. React + TypeScriptで到達状況画面を作り、Androidアプリとして表示・保守できること
+3. 立花証券e支店APIから国内株の現在価格を取得できること
+
+立花証券APIの利用準備が完了するまでは、公開仕様に合わせたMock Providerで画面開発を進めます。
 
 Google Sheetsは売買設計の正本とします。列番号へ直接依存せず、固定識別子とSheet Adapterを通して内部モデルへ変換します。
 
@@ -37,11 +54,11 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 - React
 - TypeScript
 - Vite
-- Capacitor
+- Recharts（価格線を実装する段階で追加）
 
-通常のReactコードを中心に保ち、Android固有機能だけをCapacitor Pluginまたは最小ネイティブコードへ分離します。React Nativeは採用しません。
+最初はWebとして公開・運用します。Webで不足する要件が判明した場合だけ、PWAまたはCapacitorによるAndroid化を検討します。React Nativeは採用しません。
 
-既存のKotlin Androidアプリは、APK配布とFCM受信を確認するための技術検証用です。最終的な到達状況画面の実装基盤ではありません。
+Backend、Google Sheets、立花証券APIへ接続する前に、静的なモックデータで到達状況画面の使いやすさを確認します。
 
 ## 現在の状況
 
@@ -55,22 +72,33 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 - FCM Registration token取得
 - Firebase ConsoleからAndroid端末へのPush受信確認
 
+実装済み・確認待ち:
+
+- React + TypeScript + Viteの最小Web画面
+- GitHub Pagesへの自動公開workflow
+
 実装済み・未検証:
 
 - TypeScript BackendからFCMへテスト通知を送る処理
 
 未実装:
 
-- 立花証券e支店APIからの現在価格取得
+- モックデータによる到達状況画面
+- Rechartsによる価格線
 - Google Sheets読み取り
 - 固定列識別子とSheet Adapter
-- 距離計算
-- React到達状況画面
-- CapacitorによるAndroid化
+- 立花証券e支店APIからの現在価格取得
+- 距離計算と並び替え
 
-## PoCの最小合格ライン
+## 現在の合格ライン
 
-1銘柄について、以下がAndroid端末のReact画面へ表示されることです。
+`main` へpushするとGitHub Pagesが更新され、PCまたはスマートフォンのブラウザでReactの最小ページを確認できることです。
+
+次の段階では、架空データだけを使用して1銘柄分の到達状況を表示します。Google Sheets、立花証券API、認証情報はまだ使用しません。
+
+## PoC全体の最小合格ライン
+
+1銘柄について、以下がReact Web画面へ表示されることです。
 
 ```text
 銘柄コード・銘柄名
@@ -82,36 +110,48 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 価格取得時刻
 ```
 
-画面は最初から装飾的な価格線にせず、文字主体の一覧で検証します。
-
 ## 実装順序
 
-1. 立花証券e支店APIで国内株1銘柄の現在価格を取得
-2. 現行Google Sheetsを読み取る
-3. 列追加・並び替えに耐える固定識別子とSheet Adapterを作る
-4. React + TypeScript + ViteのFrontendを作る
-5. 1銘柄分を結合し、次の有効ラインと距離を画面表示
-6. CapacitorでAndroidアプリとして表示
-7. 複数銘柄・並び替え・絞り込み
-8. 必要に応じてFCM通知を接続
+1. React WebのHello WorldをGitHub Pagesへ公開
+2. 静的モックデータで1銘柄の到達状況画面を作る
+3. Rechartsで価格線を表示する
+4. 複数銘柄・並び替え・スマートフォン表示を検証する
+5. 現行Google Sheetsを読み取る
+6. 固定列識別子とSheet Adapterを作る
+7. 立花証券API仕様に対応するMock Providerを作る
+8. 口座準備完了後に実API Providerへ差し替える
+9. Google Sheetsのラインと現在価格を結合する
+10. 必要になった時点で通知またはアプリ化を検討する
 
-Google Sheetsの全面ブラッシュアップを待たず、まず現行シートを読めることを優先します。
+## 既存Android・通知実装
 
-## Android APK
+既存の `mobile/`、Firebase設定、FCM受信コード、BackendのFCM送信コードは削除しません。
 
-現在の技術検証用Debug APKは以下から取得できます。
+これらは通知技術の検証済み資産として保持しますが、現在のPoC必須条件ではありません。
 
-[**最新APKをダウンロード**](https://github.com/quzq/stock-alert-poc/releases/download/poc-latest/app-debug.apk)
+[**技術検証用Android APKをダウンロード**](https://github.com/quzq/stock-alert-poc/releases/download/poc-latest/app-debug.apk)
 
-現時点のAPKはKotlin製のFCM検証アプリです。React + Capacitor移行後にビルド対象を切り替えます。
+## Local Development
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Production build:
+
+```bash
+npm run build
+```
 
 ## Repository Structure
 
 ```text
 stock-alert-poc/
 ├─ backend/          # TypeScript Backend
-├─ frontend/         # React + TypeScript + Vite
-├─ mobile/           # 現行Kotlin検証アプリ。将来Capacitor Androidへ移行
+├─ frontend/         # React + TypeScript + Vite Web
+├─ mobile/           # Kotlin製FCM検証アプリ
 ├─ infrastructure/   # GCP / Terraform等
 ├─ .github/
 │  └─ workflows/
@@ -122,11 +162,11 @@ stock-alert-poc/
 ## Development Policy
 
 - 最小の成功条件だけを先に通す
+- 初期リリースはReact Webとする
 - Google Sheetsを売買設計の正本として維持する
 - シート列番号をコードへ固定しない
-- Backend以外から証券APIへ直接アクセスしない
-- 到達状況画面はReactで保守できる構成にする
-- FCM通知をPoCの必須条件にしない
+- Backend以外から証券APIやGoogle Sheets APIへ直接アクセスしない
+- FCM通知とネイティブアプリ化をPoCの必須条件にしない
 - DBを先回りして導入しない
 - PoC期間中は `main` ブランチのみで運用する
 - 公開リポジトリに個人情報、個人端末情報、非公開ID、認証情報を記載しない
