@@ -1,106 +1,134 @@
 # Stock Alert PoC
 
-株価アラートの設計ルールをもとに、株価監視・優先順位判定・Push通知を自動化するためのPoCです。
+Google Sheetsで設計した売買ラインと現在価格を結合し、各銘柄が次の有効ラインまでどれだけ近いかを一覧表示する個人用PoCです。
 
-このリポジトリは投資判断そのものを行う場所ではなく、Google Sheets等で設計されたアラートを実行するアプリケーション基盤の検証を目的としています。
+このリポジトリは投資判断そのものを行う場所ではありません。売買計画に対する現在価格の位置を可視化し、到達前の注文準備を支援するアプリケーション基盤を検証します。
+
+## PoCの主役
+
+主役はPush通知ではなく、**到達状況画面**です。
+
+```text
+Google Sheetsの売買ライン・状態
+        ＋
+立花証券e支店APIの現在価格
+        ↓
+次の有効ラインと距離を計算
+        ↓
+React製の到達状況画面
+```
+
+通知は、画面未確認や到達後未処理を知らせる将来オプションです。
+
+## 技術検証
+
+PoCで検証する中心項目は次の3つです。
+
+1. 立花証券e支店APIから国内株の現在価格を取得できること
+2. 現行Google Sheetsを読み取り、列追加・並び替えに追従できること
+3. React + TypeScriptで到達状況画面を作り、Androidアプリとして表示・保守できること
+
+Google Sheetsは売買設計の正本とします。列番号へ直接依存せず、固定識別子とSheet Adapterを通して内部モデルへ変換します。
+
+## Frontend方針
+
+到達状況画面は以下で実装します。
+
+- React
+- TypeScript
+- Vite
+- Capacitor
+
+通常のReactコードを中心に保ち、Android固有機能だけをCapacitor Pluginまたは最小ネイティブコードへ分離します。React Nativeは採用しません。
+
+既存のKotlin Androidアプリは、APK配布とFCM受信を確認するための技術検証用です。最終的な到達状況画面の実装基盤ではありません。
+
+## 現在の状況
+
+完了済み:
+
+- Kotlinによる最小Androidアプリ
+- GitHub ActionsによるDebug APK生成
+- GitHub ReleaseへのAPK公開
+- Android端末でのインストール・起動確認
+- Firebase設定
+- FCM Registration token取得
+- Firebase ConsoleからAndroid端末へのPush受信確認
+
+実装済み・未検証:
+
+- TypeScript BackendからFCMへテスト通知を送る処理
+
+未実装:
+
+- 立花証券e支店APIからの現在価格取得
+- Google Sheets読み取り
+- 固定列識別子とSheet Adapter
+- 距離計算
+- React到達状況画面
+- CapacitorによるAndroid化
+
+## PoCの最小合格ライン
+
+1銘柄について、以下がAndroid端末のReact画面へ表示されることです。
+
+```text
+銘柄コード・銘柄名
+現在価格
+次の有効な購入・追加・売却ライン
+ラインまでの金額差
+ラインまでの距離率
+方向と接近状態
+価格取得時刻
+```
+
+画面は最初から装飾的な価格線にせず、文字主体の一覧で検証します。
+
+## 実装順序
+
+1. 立花証券e支店APIで国内株1銘柄の現在価格を取得
+2. 現行Google Sheetsを読み取る
+3. 列追加・並び替えに耐える固定識別子とSheet Adapterを作る
+4. React + TypeScript + ViteのFrontendを作る
+5. 1銘柄分を結合し、次の有効ラインと距離を画面表示
+6. CapacitorでAndroidアプリとして表示
+7. 複数銘柄・並び替え・絞り込み
+8. 必要に応じてFCM通知を接続
+
+Google Sheetsの全面ブラッシュアップを待たず、まず現行シートを読めることを優先します。
 
 ## Android APK
 
-最新のPoC用Debug APKは、以下から直接ダウンロードできます。
+現在の技術検証用Debug APKは以下から取得できます。
 
 [**最新APKをダウンロード**](https://github.com/quzq/stock-alert-poc/releases/download/poc-latest/app-debug.apk)
 
-`main` のAndroid関連コードが更新されると、GitHub ActionsでDebug APKをビルドし、`poc-latest` Releaseの `app-debug.apk` を更新します。
-
-> APKはPoC用のDebugビルドです。Android端末へ手動インストールする場合、端末側でブラウザ等からの「不明なアプリのインストール」を許可する必要があります。
-
-## 現在のマイルストーン
-
-APKのビルド・公開・Android端末でのインストール・起動確認に加えて、FCM Registration token取得とFirebase ConsoleからのPush通知受信確認まで完了しています。
-
-現在は **TypeScript BackendからFCMへPush通知を送信する確認** が最優先です。
-
-`backend/` にはFirebase Admin SDKを使用した最小のテスト送信処理を実装済みです。BackendはNode.js 22以上を使用し、認証にはApplication Default Credentialsを使用します。
-
-BackendからAndroid端末へのテストPushが通った後、立花証券e支店APIから1銘柄の現在株価を取得する処理へ進みます。
-
-## Firebase / FCM セットアップ
-
-AndroidアプリのApplication IDは以下です。
-
-```text
-com.quzq.stockalertpoc
-```
-
-1. Firebaseプロジェクトを作成する
-2. FirebaseプロジェクトへAndroidアプリ `com.quzq.stockalertpoc` を登録する
-3. `google-services.json` を取得する
-4. ファイル内容をBase64化する
-5. GitHub Repository Secret `FIREBASE_GOOGLE_SERVICES_JSON_BASE64` に登録する
-6. GitHub Actionsの `Build Android Debug APK` を再実行する
-7. READMEの「最新APKをダウンロード」からAPKを再インストールする
-8. アプリ起動時に通知を許可する
-9. 画面に `FCM ready` とRegistration tokenが表示されればAndroid側のFCM準備完了
-
-`google-services.json` は公開リポジトリへコミットしません。GitHub ActionsがSecretからビルド時だけ復元します。
-
-Secretが未設定でもAPK自体はビルドできますが、そのAPKではFCMは動作しません。
-
-## FCM受信テスト
-
-FCM有効APKを起動するとRegistration tokenが画面に表示されます。テキストは選択可能です。
-
-Firebase側からそのRegistration token宛てにテスト通知を送信し、Android端末へ通知が届けばFCM受信確認完了です。
-
-## TypeScript Backend
-
-`backend/` はTypeScriptで実装します。
-
-現在の最小機能は、Firebase Admin SDKを使用して指定されたAndroid端末へテスト通知を1件送信することです。
-
-実行に必要な認証情報や端末識別情報は環境変数または実行環境の認証機構から渡し、公開リポジトリへコミットしません。
-
-## PoC Stage 1
-
-最終的な最小成功条件は以下です。
-
-```text
-GCP上のTypeScript Backend
-        ↓
-立花証券e支店APIから1銘柄の現在株価を取得
-        ↓
-FCM
-        ↓
-Android端末へPush通知
-```
-
-通知内容は、銘柄コード・銘柄名・現在株価・取得時刻を想定しています。
-
-Stage 1では、Google Sheets連携、WebSocket、DB、チャート、複数銘柄監視、本格Android UIなどは実装しません。
+現時点のAPKはKotlin製のFCM検証アプリです。React + Capacitor移行後にビルド対象を切り替えます。
 
 ## Repository Structure
 
 ```text
 stock-alert-poc/
 ├─ backend/          # TypeScript Backend
-├─ mobile/           # Android app
-├─ infrastructure/   # GCP / Terraform etc.
+├─ frontend/         # React + TypeScript + Vite
+├─ mobile/           # 現行Kotlin検証アプリ。将来Capacitor Androidへ移行
+├─ infrastructure/   # GCP / Terraform等
 ├─ .github/
-│  └─ workflows/     # GitHub Actions
-├─ AGENTS.md         # Development rules for humans and AI
+│  └─ workflows/
+├─ AGENTS.md
 └─ README.md
 ```
 
 ## Development Policy
 
-PoCでは、問題を切り分けやすくするため一段階ずつ実装します。
-
 - 最小の成功条件だけを先に通す
-- 将来必要になりそうという理由だけで機能を追加しない
+- Google Sheetsを売買設計の正本として維持する
+- シート列番号をコードへ固定しない
+- Backend以外から証券APIへ直接アクセスしない
+- 到達状況画面はReactで保守できる構成にする
+- FCM通知をPoCの必須条件にしない
 - DBを先回りして導入しない
 - PoC期間中は `main` ブランチのみで運用する
-- Google Sheetsは将来もアラート設計の正本として維持する
-- 公開リポジトリに個人情報・個人端末情報・非公開ID・認証情報を記載しない
-- Firebase設定ファイルはGitHub Secret経由でビルド時に注入する
+- 公開リポジトリに個人情報、個人端末情報、非公開ID、認証情報を記載しない
 
 詳細な開発ルールは [`AGENTS.md`](./AGENTS.md) を参照してください。
