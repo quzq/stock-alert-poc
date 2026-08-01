@@ -1,7 +1,7 @@
 import { createServer, type ServerResponse } from 'node:http';
 import { URL } from 'node:url';
 
-import { callTachibana } from './tachibana/callTachibana.js';
+import { getMainData } from './main/getMainData.js';
 
 const port = Number(process.env.PORT ?? '8080');
 const allowedOrigin = process.env.ALLOWED_ORIGIN?.trim() || '*';
@@ -43,16 +43,13 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (
-    request.method === 'GET' &&
-    url.pathname === '/api/tachibana/market-price'
-  ) {
+  if (request.method === 'GET' && url.pathname === '/api/alert-statuses') {
     try {
-      const tachibanaResponse = await callTachibana();
-      sendJson(response, 200, tachibanaResponse);
+      const alertStatuses = await getMainData();
+      sendJson(response, 200, alertStatuses);
     } catch (error) {
-      console.error('Failed to call Tachibana API.', error);
-      sendJson(response, 500, { error: 'Failed to call Tachibana API.' });
+      console.error('Failed to get alert statuses.', error);
+      sendJson(response, 500, { error: 'Failed to get alert statuses.' });
     }
     return;
   }
