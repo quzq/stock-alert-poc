@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "npm run build && npm run start",
     "send:test": "npm run build && node dist/sendTestNotification.js"
   },
   "dependencies": {
