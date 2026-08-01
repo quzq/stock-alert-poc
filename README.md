@@ -1,5 +1,7 @@
 # Stock Alert PoC
 
+[**GitHub PagesでReact Web版を開く**](https://quzq.github.io/stock-alert-poc/)
+
 Google Sheetsで設計した売買ラインと現在価格を結合し、各銘柄が次の有効ラインまでどれだけ近いかを一覧表示する個人用PoCです。
 
 このリポジトリは投資判断そのものを行う場所ではありません。売買計画に対する現在価格の位置を可視化し、到達前の注文準備を支援するアプリケーション基盤を検証します。
@@ -7,8 +9,6 @@ Google Sheetsで設計した売買ラインと現在価格を結合し、各銘�
 ## React Web
 
 初期リリースはAndroidアプリではなく、React Web版を使用します。
-
-[**React Web版を開く**](https://quzq.github.io/stock-alert-poc/)
 
 `main` の `frontend/` が更新されると、GitHub ActionsでビルドしてGitHub Pagesへ公開します。
 
