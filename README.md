@@ -6,18 +6,47 @@ Google Sheetsで設計した売買ラインと現在価格を結合し、各銘�
 
 このリポジトリは投資判断そのものを行う場所ではありません。売買計画に対する現在価格の位置を可視化し、到達前の注文準備を支援するアプリケーション基盤を検証します。
 
-## React Web
+## 現在のWeb画面
 
-初期リリースはAndroidアプリではなく、React Web版を使用します。
-
-`main` の `frontend/` が更新されると、GitHub ActionsでビルドしてGitHub Pagesへ公開します。
-
-現在のWeb画面は、ReactとGitHub Pagesの公開経路を確認するためのHello World相当です。
+React FrontendからTypeScript Backendを呼び、Backendの `callTachibana()` が返したJSONを加工せず表示します。
 
 ```text
-Stock Alert PoC
-React Web build successful
+React Web
+   ↓ GET /api/tachibana/market-price
+TypeScript Backend
+   ↓
+callTachibana()
+   ↓
+立花証券API仕様に合わせた固定レスポンス
 ```
+
+Frontendの表示は次の処理だけです。
+
+```tsx
+JSON.stringify(tachibanaResponse, null, 2)
+```
+
+GitHub Pagesは静的配信のため、公開画面からBackendへ接続するにはBackendの公開URLが別途必要です。GitHub ActionsではRepository Variable `VITE_API_BASE_URL` をFrontendのビルド時に使用します。未設定時は `http://localhost:8080` を使用します。
+
+## 立花証券APIモック
+
+現在の `callTachibana()` は実通信を行わず、公式の `CLMMfdsGetMarketPrice` 応答構造に合わせた固定オブジェクトを返します。
+
+```json
+{
+  "sCLMID": "CLMMfdsGetMarketPrice",
+  "aCLMMfdsMarketPrice": [
+    {
+      "sIssueCode": "5367",
+      "pDPP": "1255",
+      "pPRP": "1240",
+      "tDPP:T": "153000"
+    }
+  ]
+}
+```
+
+口座とAPI利用設定の準備完了後、`callTachibana()` の内部だけを実API通信へ差し替えます。
 
 ## PoCの主役
 
@@ -43,8 +72,6 @@ PoCで検証する中心項目は次の3つです。
 2. 現行Google Sheetsを読み取り、列追加・並び替えに追従できること
 3. 立花証券e支店APIから国内株の現在価格を取得できること
 
-立花証券APIの利用準備が完了するまでは、公開仕様に合わせたMock Providerで画面開発を進めます。
-
 Google Sheetsは売買設計の正本とします。列番号へ直接依存せず、固定識別子とSheet Adapterを通して内部モデルへ変換します。
 
 ## Frontend方針
@@ -58,8 +85,6 @@ Google Sheetsは売買設計の正本とします。列番号へ直接依存せ�
 
 最初はWebとして公開・運用します。Webで不足する要件が判明した場合だけ、PWAまたはCapacitorによるAndroid化を検討します。React Nativeは採用しません。
 
-Backend、Google Sheets、立花証券APIへ接続する前に、静的なモックデータで到達状況画面の使いやすさを確認します。
-
 ## 現在の状況
 
 完了済み:
@@ -71,11 +96,16 @@ Backend、Google Sheets、立花証券APIへ接続する前に、静的なモッ
 - Firebase設定
 - FCM Registration token取得
 - Firebase ConsoleからAndroid端末へのPush受信確認
+- React + TypeScript + Viteの最小Web画面
+- GitHub Pagesへの自動公開workflow
 
 実装済み・確認待ち:
 
-- React + TypeScript + Viteの最小Web画面
-- GitHub Pagesへの自動公開workflow
+- `callTachibana()` の固定レスポンス
+- `GET /api/tachibana/market-price`
+- FrontendからBackendへのfetch
+- `JSON.stringify` による応答表示
+- GitHub ActionsでのBackend・Frontendビルド
 
 実装済み・未検証:
 
@@ -83,18 +113,19 @@ Backend、Google Sheets、立花証券APIへ接続する前に、静的なモッ
 
 未実装:
 
-- モックデータによる到達状況画面
-- Rechartsによる価格線
+- BackendのCloud Run等への公開
+- 立花証券e支店APIへの実接続
 - Google Sheets読み取り
 - 固定列識別子とSheet Adapter
-- 立花証券e支店APIからの現在価格取得
+- 到達状況への変換
 - 距離計算と並び替え
+- Rechartsによる価格線
 
 ## 現在の合格ライン
 
-`main` へpushするとGitHub Pagesが更新され、PCまたはスマートフォンのブラウザでReactの最小ページを確認できることです。
+ローカル環境でFrontendからBackendを呼び、立花証券API形式の固定JSONがブラウザへそのまま表示されることです。
 
-次の段階では、架空データだけを使用して1銘柄分の到達状況を表示します。Google Sheets、立花証券API、認証情報はまだ使用しません。
+公開GitHub Pagesで同じ確認を行うには、Backendを公開した後にRepository Variable `VITE_API_BASE_URL` へそのURLを設定します。
 
 ## PoC全体の最小合格ライン
 
@@ -113,14 +144,14 @@ Backend、Google Sheets、立花証券APIへ接続する前に、静的なモッ
 ## 実装順序
 
 1. React WebのHello WorldをGitHub Pagesへ公開
-2. 静的モックデータで1銘柄の到達状況画面を作る
-3. Rechartsで価格線を表示する
-4. 複数銘柄・並び替え・スマートフォン表示を検証する
-5. 現行Google Sheetsを読み取る
-6. 固定列識別子とSheet Adapterを作る
-7. 立花証券API仕様に対応するMock Providerを作る
-8. 口座準備完了後に実API Providerへ差し替える
-9. Google Sheetsのラインと現在価格を結合する
+2. Backendに立花証券API仕様準拠の固定レスポンスを実装
+3. FrontendでBackend応答をそのまま表示
+4. BackendをCloud Run等へ公開し、GitHub Pagesから接続
+5. 口座準備完了後に実API通信へ差し替え
+6. 現行Google Sheetsを読み取る
+7. 固定列識別子とSheet Adapterを作る
+8. Google Sheetsのラインと現在価格を結合する
+9. 到達状況画面とRecharts価格線を作る
 10. 必要になった時点で通知またはアプリ化を検討する
 
 ## 既存Android・通知実装
@@ -133,23 +164,42 @@ Backend、Google Sheets、立花証券APIへ接続する前に、静的なモッ
 
 ## Local Development
 
+Backend:
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+Frontendを別のターミナルで起動:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
+Backendの標準URLは `http://localhost:8080`、Frontendの標準URLは `http://localhost:5173` です。
+
+別のBackendへ接続する場合:
+
+```bash
+VITE_API_BASE_URL=https://example-backend.run.app npm run dev
+```
+
 Production build:
 
 ```bash
-npm run build
+cd backend && npm run build
+cd ../frontend && npm run build
 ```
 
 ## Repository Structure
 
 ```text
 stock-alert-poc/
-├─ backend/          # TypeScript Backend
+├─ backend/          # TypeScript Backend、立花APIモック、FCM送信
 ├─ frontend/         # React + TypeScript + Vite Web
 ├─ mobile/           # Kotlin製FCM検証アプリ
 ├─ infrastructure/   # GCP / Terraform等
