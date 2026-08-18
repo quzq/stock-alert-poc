@@ -1,6 +1,7 @@
 import { createServer, type ServerResponse } from 'node:http';
 import { URL } from 'node:url';
 
+import { probeGoogleSheet } from './googleSheets/probeGoogleSheet.js';
 import { getMainData } from './main/getMainData.js';
 
 const port = Number(process.env.PORT ?? '8080');
@@ -40,6 +41,20 @@ const server = createServer(async (request, response) => {
 
   if (request.method === 'GET' && url.pathname === '/health') {
     sendJson(response, 200, { status: 'ok' });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/sheets/probe') {
+    try {
+      const probeResult = await probeGoogleSheet();
+      sendJson(response, 200, {
+        status: 'ok',
+        ...probeResult,
+      });
+    } catch (error) {
+      console.error('Failed to read Google Sheets.', error);
+      sendJson(response, 500, { error: 'Failed to read Google Sheets.' });
+    }
     return;
   }
 
