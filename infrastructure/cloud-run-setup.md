@@ -3,6 +3,8 @@
 Backendは `main` へのpushで GitHub Actions から Cloud Run へデプロイする。
 長寿命のサービスアカウントJSON鍵は使用せず、GitHub Actions と Google Cloud の認証には Workload Identity Federation を使う。
 
+GCPとFirebaseは同一プロジェクトを使用する。GitHub Actionsのデプロイ対象は `GCP_PROJECT_ID` で指定し、Cloud Run上のFirebase Admin SDKはApplication Default Credentialsから同一プロジェクトを解決する。`FIREBASE_PROJECT_ID` は使用しない。
+
 ## 1. Google Cloud API
 
 対象プロジェクトで少なくとも以下を有効化する。
@@ -35,6 +37,7 @@ Source deployではCloud Buildが実行される。Google Cloud側のBuild用Ser
 - サービスアカウント鍵は作成しない
 - Cloud Runへ実行IDとして割り当てる
 - Google Sheets側でこのService Accountを対象Spreadsheetの閲覧者として共有する
+- Firebase Admin SDKもこのService AccountのADCを使用する
 
 Sheets閲覧はSpreadsheetの共有設定で許可し、実際の売買設計やSpreadsheet IDを公開リポジトリへ書かない。
 
@@ -79,6 +82,8 @@ CLOUD_RUN_SERVICE=stock-alert-poc-backend
 ```text
 projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
 ```
+
+`FIREBASE_PROJECT_ID` は登録しない。Firebaseは `GCP_PROJECT_ID` と同じプロジェクトを使い、実行時はADCで解決する。
 
 ## 5. 初回デプロイ
 
