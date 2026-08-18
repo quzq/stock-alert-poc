@@ -12,11 +12,9 @@ function requireEnv(name: string): string {
 }
 
 const registrationToken = requireEnv('FCM_REGISTRATION_TOKEN');
-const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
 
 initializeApp({
   credential: applicationDefault(),
-  ...(projectId ? { projectId } : {}),
 });
 
 const sentAt = new Date().toISOString();
