@@ -1,0 +1,75 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloud-run-backend
+  cancel-in-progress: true
+
+env:
+  GCP_REGION: ${{ vars.GCP_REGION || 'asia-northeast1' }}
+  CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'stock-alert-poc-backend' }}
+
+jobs:
+  deploy:
+    if: >-
+      ${{
+        vars.GCP_PROJECT_ID != '' &&
+        vars.GCP_WIF_PROVIDER != '' &&
+        vars.GCP_DEPLOY_SERVICE_ACCOUNT != '' &&
+        vars.GCP_RUNTIME_SERVICE_ACCOUNT != ''
+      }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install --no-audit --no-fund
+
+      - name: Build TypeScript backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Deploy backend source to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ env.GCP_REGION }}
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          source: ./backend
+          env_vars: |-
+            GOOGLE_SPREADSHEET_ID=${{ vars.GOOGLE_SPREADSHEET_ID }}
+            GOOGLE_SHEET_NAME=${{ vars.GOOGLE_SHEET_NAME }}
+          env_vars_update_strategy: merge
+          flags: >-
+            --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+
+      - name: Show Cloud Run URL
+        run: echo "${{ steps.deploy.outputs.url }}"
