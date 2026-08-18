@@ -21,3 +21,4 @@ frontend/.env.*
 # Credentials
 **/service-account*.json
 **/*service-account*.json
+gha-creds-*.json
